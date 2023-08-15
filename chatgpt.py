@@ -174,7 +174,7 @@ def generate_summary(initial_prompt: str, gpt_model: str, summary_length: int = 
     :return: チャットの要約
     """
 
-    # chat_history の先頭に要約の依頼を追加
+    # messages の先頭に要約の依頼を追加
     summary_request = {"role": "system",
                        "content": "あなたはユーザーの依頼を要約する役割を担います。"
                                   f"以下のユーザーの依頼を必ず全角{summary_length}文字以内で要約してください"}

@@ -171,5 +171,5 @@ def output_excel(chat_log: list[dict], chat_summary: str):
 
 if __name__ == "__main__":
     test_log = [{"role": "user", "content": "こんにちは"}, {"role": "assistant", "content": "hello"}]
-    test_summary = "test"
+    test_summary = "test:/?*[]"
     output_excel(test_log, test_summary)
