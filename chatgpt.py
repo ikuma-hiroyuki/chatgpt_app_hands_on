@@ -22,19 +22,15 @@ def fetch_gpt_model_list() -> list[str] | None:
     try:
         # APIから使えるモデルの一覧を取得する
         all_model_list = openai.Model.list()
-    except openai.error.OpenAIError as e:
-        if isinstance(e, (openai.error.APIError, openai.error.ServiceUnavailableError)):
-            print_error_message("OpenAI側でエラーが発生しています。少し待ってから再度試してください。")
-            print("サービス稼働状況は https://status.openai.com/ で確認できます。")
-        elif isinstance(e, openai.error.RateLimitError):
-            print_error_message("ネットワークに問題があります。設定を見直すか少し待ってから再度試してください。")
-        elif isinstance(e, openai.error.AuthenticationError):
-            print_error_message("APIキーまたはトークンが無効もしくは期限切れです。")
-        elif isinstance(e, openai.error.RateLimitError):
-            print_error_message("今月のリクエストの上限に達しました。")
-        else:
-            print_error_message("エラーが発生しました。少し待ってから再度試してください。")
-        return None
+    except (openai.error.APIError, openai.error.ServiceUnavailableError):
+        print_error_message("OpenAI側でエラーが発生しています。少し待ってから再度試してください。")
+        print("サービス稼働状況は https://status.openai.com/ で確認できます。")
+    except openai.error.APIConnectionError:
+        print_error_message("ネットワークに問題があります。設定を見直すか少し待ってから再度試してください。")
+    except openai.error.AuthenticationError:
+        print_error_message("APIキーまたはトークンが無効もしくは期限切れです。")
+    except openai.error.OpenAIError:
+        print_error_message("エラーが発生しました。少し待ってから再度試してください。")
     else:
         # GPTモデルのみを抽出する
         gpt_model_list = []
