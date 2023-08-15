@@ -154,6 +154,7 @@ def get_initial_prompt(chat_log: list[dict]) -> str | None:
     for log in chat_log:
         if log["role"] == "user":
             initial_prompt = log["content"]
+            break
 
     if initial_prompt:
         return initial_prompt
