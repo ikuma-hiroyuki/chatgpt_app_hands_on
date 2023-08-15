@@ -7,7 +7,7 @@ import openpyxl
 from openpyxl.styles import Alignment, Font, PatternFill
 
 base_dir = Path(__file__).parent
-excel_path = base_dir / "chat_history.xlsx"
+excel_path = base_dir / "chat_log.xlsx"
 
 HEADER_ROW_NUMBER = 2
 ROW_HEIGHT = 18
