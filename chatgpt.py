@@ -133,7 +133,7 @@ def generate_chat_log(model: str, system_role: dict) -> list[dict]:
         # ログに追加
         chat_log.append({"role": role, "content": content})
         # 応答を表示
-        print(f"\n{Fore.CYAN}AIアシスタント:{Fore.RESET} {content}")
+        print(f"\n{Fore.GREEN}AIアシスタント:{Fore.RESET} {content}")
 
     # ループを抜けたら終了メッセージを表示
     print("\nチャットを終了します。")
