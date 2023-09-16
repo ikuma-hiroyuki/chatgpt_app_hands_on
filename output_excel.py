@@ -4,172 +4,199 @@ from datetime import datetime
 from pathlib import Path
 
 import openpyxl
-from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.styles import Font, PatternFill, Alignment
 
 base_dir = Path(__file__).parent
 excel_path = base_dir / "chat_log.xlsx"
 
-HEADER_ROW_NUMBER = 2
-ROW_HEIGHT = 18
 
+def is_output_open_excel() -> bool:
+    """
+    Excelファイルが開かれているかどうかを判定する
+    :return:
+    """
 
-def is_open_output_excel() -> bool:
-    """
-    excel_pathが開かれているかどうかを返す
-    :return: excel_pathが開かれているかどうか
-    """
+    # Windows
     if os.name == "nt":
-        # Windows
         try:
             with excel_path.open("r+b"):
-                pass
-            return False
-        except IOError:
+                return False
+        except PermissionError:
             return True
-    elif os.name == "posix":
-        # unix系
+
+    # Mac
+    if os.name == "posix":
         if excel_path.exists():
-            result = subprocess.run(["lsof", str(excel_path)], stdout=subprocess.PIPE)
+            result = subprocess.run(["lsof", excel_path], stdout=subprocess.PIPE)
             return bool(result.stdout)
-        else:
-            return False
+        return False
 
 
 def load_or_create_workbook() -> tuple[openpyxl.Workbook, bool]:
     """
-    ワークブックを読み込み、そのオブジェクトを返すとともに新規作成したかどうかを返す
-    :returns: ワークブックのオブジェクト, 新規作成したかどうか
+    Excelファイルを読み込むか、存在しない場合は作成する
+    :returns: ワークブックオブジェクトと、ファイルが作成されたかどうかのフラグ
     """
 
-    # ワークブックの読み込み
+    # ファイルの存在確認
     if excel_path.exists():
+        # ファイルを読み込んで返す
         wb = openpyxl.load_workbook(excel_path)
         return wb, False
     else:
+        # ファイルを作成して返す
         wb = openpyxl.Workbook()
         return wb, True
 
 
-def create_worksheet(title: str, wb, is_new: bool):
+def create_worksheet(title: str, target_workbook: openpyxl.Workbook, is_new: bool):
     """
-    ワークシートを作成する
-    :param title: ワークシートのタイトル
-    :param wb: 対象のワークブックのオブジェクト
-    :param is_new: ブックを新規作成したかどうか
-    :return: ワークシートのオブジェクト
+    シートを作成してシート名に使えない文字を除去したうえでシート名を変更して返す
+    :param title: シート名(プロンプトの要約)
+    :param target_workbook: 対象になるワークブックオブジェクト
+    :param is_new: ワークブックが新規作成されたかどうかのフラグ
+    :return: ワークシートオブジェクト
     """
 
-    title = trim_invalid_chars(title)
+    # シート名に使えない文字を除去
+    trimmed_title = trim_invalid_chars(title)
+
     if is_new:
-        ws = wb.active
-        ws.title = title
+        # アクティブシート(Sheet)を取得
+        target_worksheet = target_workbook.active
+        target_worksheet.title = trimmed_title
     else:
-        ws = wb.create_sheet(title)  # 同じ名前がある場合、末尾に数字が付与される
+        # シートを追加
+        target_worksheet = target_workbook.create_sheet(title=trimmed_title)
+        target_workbook.move_sheet(target_worksheet, offset=-len(target_workbook.worksheets) + 1)
+        target_workbook.active = target_worksheet
 
-    wb.move_sheet(ws, offset=-len(wb.worksheets) + 1)
-    wb.active = ws
-
-    return ws
+    return target_worksheet
 
 
-def trim_invalid_chars(string: str) -> str:
+def trim_invalid_chars(title: str) -> str:
     """
-    エクセルのシート名で使えない文字列を削除
-    :param string: 対象の文字列
-    :return: 使えない文字列を削除した文字列
+    シート名に使えない文字を除去する
+    :param title: シート名
+    :return: 除去後のシート名
     """
 
-    invalid_chars = [':', '\\', '/', '?', '*', '[', ']']
+    new_title = title
+    invalid_chars = ["/", "\\", "?", "*", "[", "]"]
     for char in invalid_chars:
-        string = string.replace(char, '')
-    return string
+        new_title = new_title.replace(char, "")
+    return new_title
 
 
-def header_formatting(ws):
+def header_formatting(target_worksheet):
     """
-    ヘッダーの書式設定を行う
-    :param ws: ワークシートオブジェクト
-    """
-
-    # ヘッダーのフォント設定とヘッダーオブジェクトを変数に格納
-    ws["A1"].font = Font(name="Meiryo", size=11, bold=True)
-    header_a, header_b = ws[f"A{HEADER_ROW_NUMBER}"], ws[f"B{HEADER_ROW_NUMBER}"]
-
-    # ヘッダーの書き込み
-    ws["A1"].value = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
-    header_a.value, header_b.value = "ロール", "発言内容"
-
-    # ヘッダーのフォント変更
-    font_style = Font(name="Meiryo", size=11, bold=True, color="FFFFFF")
-    header_a.font, header_b.font = font_style, font_style
-
-    # ヘッダーの色を緑色にする
-    excel_green = PatternFill(fill_type='solid', fgColor='217346')
-    header_a.fill, header_b.fill = excel_green, excel_green
-
-    # 列の幅を調整
-    ws.column_dimensions["A"].width = 22
-    ws.column_dimensions["B"].width = 168
-
-
-def write_chat_history(ws, chat_log: list[dict]):
-    """
-    チャットの履歴を書き込み、書式設定する
-    :param chat_log: チャットのログ
-    :param ws: ワークシートオブジェクト
+    出力対象のワークシートにヘッダーを設定する
+    :param target_worksheet: 出力対象のワークシート
     """
 
-    font_style = Font(name="Meiryo", size=10)
-    assistant_style = PatternFill(fill_type='solid', fgColor='d9d9d9')
+    # A1セルに出力時の日時を書き込みフォントを設定
+    datetime_cell = target_worksheet["A1"]
+    datetime_cell.value = datetime.now().strftime("%Y/%m/%d %H:%M")
+    datetime_cell.font = Font(name="メイリオ")
+
+    # A2セルに「ロール」B2セルに「発言内容」と書き込み、フォントとセルの色を設定
+    role_header_cell = target_worksheet["A2"]
+    content_header_cell = target_worksheet["B2"]
+
+    # セルに値を設定
+    role_header_cell.value = "ロール"
+    content_header_cell.value = "発言内容"
+
+    # フォントの設定
+    white_color = "FFFFFF"
+    header_font_style = Font(name="メイリオ", bold=True, color=white_color)
+    role_header_cell.font = header_font_style
+    content_header_cell.font = header_font_style
+
+    # セルの色を設定
+    excel_green = "156B31"
+    header_color = PatternFill(fill_type="solid", fgColor=excel_green)
+    role_header_cell.fill = header_color
+    content_header_cell.fill = header_color
+
+    # セルの幅を調整
+    target_worksheet.column_dimensions["A"].width = 22
+    target_worksheet.column_dimensions["B"].width = 168
+
+
+def write_chat_log(target_worksheet, chat_log: list[dict]):
+    """
+    チャットの履歴を書き込み書式設定する
+    :param target_worksheet: 出力対象のワークシート
+    :param chat_log: チャットの履歴
+    """
+
+    row_height_adjustment_standard = 17
+    font_style = Font(name="メイリオ", size=10)
+    light_gray = "d9d9d9"
+    assistant_color = PatternFill(fill_type="solid", fgColor=light_gray)
 
     # チャット内容の書き込み
-    for i, content in enumerate(chat_log, 3):
-        cell_a, cell_b = ws[f"A{i}"], ws[f"B{i}"]
+    write_start_row = 3
+    for row_number, content in enumerate(chat_log, write_start_row):
+        cell_role, cell_content = target_worksheet[f"A{row_number}"], target_worksheet[f"B{row_number}"]
 
         # ロールと発言内容を書き込み
-        cell_a.value, cell_b.value = content["role"], content["content"]
+        cell_role.value = content["role"]
+        cell_content.value = content["content"]
 
-        # セル内改行に合わせて表示を調整
-        cell_b.alignment = Alignment(wrapText=True)
+        # セル内改行の調整
+        cell_content.alignment = Alignment(wrapText=True)
 
         # 行の高さを調整
-        adjusted_row_height = len(content["content"].split("\n")) * ROW_HEIGHT
-        ws.row_dimensions[i].height = adjusted_row_height
+        adjusted_row_height = len(content["content"].split("\n")) * row_height_adjustment_standard
+        target_worksheet.row_dimensions[row_number].height = adjusted_row_height
 
         # 書式設定
-        cell_a.font, cell_b.font = font_style, font_style
+        cell_role.font = font_style
+        cell_content.font = font_style
         if content["role"] == "assistant":
-            cell_a.fill, cell_b.fill = assistant_style, assistant_style
+            cell_role.fill = assistant_color
+            cell_content.fill = assistant_color
 
 
 def open_workbook():
-    """エクセルを開く"""
+    """Excelファイルを開く"""
+
+    # Windows
     if os.name == "nt":
-        # windows
         os.system(f"start {excel_path}")
-    elif os.name == "posix":
-        # mac
+
+    # Mac
+    if os.name == "posix":
         os.system(f"open {excel_path}")
 
 
 def output_excel(chat_log: list[dict], chat_summary: str):
     """
     chat_history.xlsx にチャットの履歴を書き込むためのエントリポイント。
-    :param chat_log: チャットのログ
+    :param chat_log: チャットの履歴
     :param chat_summary: チャットの要約
+    :return:
     """
-
-    wb, is_new_create_wb = load_or_create_workbook()
-    ws = create_worksheet(chat_summary, wb, is_new_create_wb)
-
-    header_formatting(ws)
-    write_chat_history(ws, chat_log)
-    wb.save(excel_path)
-    wb.close()
+    workbook, is_created = load_or_create_workbook()
+    worksheet = create_worksheet(title=chat_summary, target_workbook=workbook, is_new=is_created)
+    header_formatting(target_worksheet=worksheet)
+    write_chat_log(target_worksheet=worksheet, chat_log=chat_log)
+    workbook.save(excel_path)
+    workbook.close()
     open_workbook()
 
 
 if __name__ == "__main__":
-    test_log = [{"role": "user", "content": "こんにちは"}, {"role": "assistant", "content": "hello"}]
-    test_summary = "test:/?*[]"
-    output_excel(test_log, test_summary)
+    log = [
+        {"role": "user", "content": "こんにちは"},
+        {"role": "assistant", "content": "こんにちは"},
+        {"role": "user", "content": "元気ですか？"},
+        {"role": "assistant", "content":
+            "1. 元気\nです\nあり\nがと\nう\nござい\nます\nおかげ\nさまで\n元気です\nあなたは\n元気\nですか？"
+            "\n2. 元気\nです\nあり\nがと\nう\nござい\nます\nおかげ\nさまで\n元気です\nあなたは\n元気\nですか？"
+            "\n3. 元気\nです\nあり\nがと\nう\nござい\nます\nおかげ\nさまで\n元気です\nあなたは\n元気\nですか？"},
+    ]
+
+    output_excel(log, "test/\\?*[]")
