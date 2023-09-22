@@ -13,7 +13,7 @@ excel_path = base_dir / "chat_log.xlsx"
 def is_output_open_excel() -> bool:
     """
     Excelファイルが開かれているかどうかを判定する
-    :return:
+    :return: 開かれているかの真偽値
     """
 
     # Windows
