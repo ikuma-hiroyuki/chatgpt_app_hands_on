@@ -33,7 +33,7 @@ def input_user_prompt() -> str:
 
     user_prompt = ""
     while not user_prompt:
-        user_prompt = input(f"{Fore.CYAN}あなた: {Fore.RESET}")
+        user_prompt = input(f"\n{Fore.CYAN}あなた: {Fore.RESET}")
         if not user_prompt:
             print("プロンプトを入力してください。")
     return user_prompt
