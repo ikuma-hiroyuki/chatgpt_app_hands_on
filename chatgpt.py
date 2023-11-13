@@ -1,6 +1,7 @@
 import os
 
 import openai
+from openai import OpenAI
 from colorama import Fore
 from dotenv import load_dotenv
 
@@ -9,7 +10,7 @@ DEFAULT_MODEL = "gpt-3.5-turbo"
 
 # .envファイルからAPIキーを取得
 load_dotenv()
-openai.api_key = os.getenv('API_KEY')
+client = OpenAI(api_key=os.getenv('API_KEY'))
 
 
 def give_role_to_system() -> str:
@@ -63,7 +64,7 @@ def generate_chat_log(gpt_mode: str) -> list[dict]:
         chat_log.append({"role": "user", "content": prompt})
 
         # AIの応答を取得
-        response = openai.ChatCompletion.create(model=gpt_mode, messages=chat_log, stream=True)
+        response = client.chat.completions.create(model=gpt_mode, messages=chat_log, stream=True)
         content, role = stream_and_concatenate_response(response)
 
         # チャットログにAIの応答を追加
@@ -84,9 +85,9 @@ def stream_and_concatenate_response(response) -> tuple[str, str]:
     content_list: list[str] = []
     role = ""
     for chunk in response:
-        chunk_delta: dict = chunk.choices[0].delta
-        content_chunk: str = chunk_delta.get("content", "")
-        role_chunk: str = chunk_delta.get("role", "")
+        chunk_delta = chunk.choices[0].delta
+        content_chunk: str = chunk_delta.content
+        role_chunk: str = chunk_delta.role
         if role_chunk:
             role = role_chunk
         content_list.append(content_chunk)
@@ -94,7 +95,7 @@ def stream_and_concatenate_response(response) -> tuple[str, str]:
     else:
         print()
 
-    concatenate_response = "".join(content_list)
+    concatenate_response = "".join([content for content in content_list if content is not None])
     return concatenate_response, role
 
 
@@ -114,15 +115,16 @@ def fetch_gpt_model_list() -> list[str] | None:
 
     # モデル一覧の取得
     try:
-        all_model_list = openai.Model.list().data
-    except (openai.error.APIError, openai.error.ServiceUnavailableError):
+        all_model_list = client.models.list().data
+    except openai.APIError:
         print_error_message("OpenAI側でエラーが発生しています。少し待ってから再度試してください。")
         print("サービス稼働状況は https://status.openai.com で確認できます。")
-    except openai.error.Timeout:
+    # except openai.Timeout:
+    except TimeoutError:
         print_error_message("処理に時間がかかりすぎているためプログラムを終了します。少し待ってから再度試してください。")
-    except openai.error.AuthenticationError:
+    except openai.AuthenticationError:
         print_error_message("APIキーが正しくないためプログラムを終了します。")
-    except openai.error.OpenAIError:
+    except openai.OpenAIError:
         print_error_message("エラーが発生しました。")
     else:
         # gptモデルのみ抽出する
@@ -197,7 +199,7 @@ def generate_summary(initial_prompt: str, summary_length: int = 10) -> str:
 
     # GPTによる要約を取得
     messages = [summary_request, {"role": "user", "content": initial_prompt}]
-    response = openai.ChatCompletion.create(model=DEFAULT_MODEL, messages=messages, max_tokens=summary_length)
+    response = client.chat.completions.create(model=DEFAULT_MODEL, messages=messages, max_tokens=summary_length)
     summary = response.choices[0].message.content
 
     if len(summary) > summary_length:
