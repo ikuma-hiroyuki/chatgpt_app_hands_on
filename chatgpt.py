@@ -119,7 +119,6 @@ def fetch_gpt_model_list() -> list[str] | None:
     except openai.APIError:
         print_error_message("OpenAI側でエラーが発生しています。少し待ってから再度試してください。")
         print("サービス稼働状況は https://status.openai.com で確認できます。")
-    # except openai.Timeout:
     except TimeoutError:
         print_error_message("処理に時間がかかりすぎているためプログラムを終了します。少し待ってから再度試してください。")
     except openai.AuthenticationError:
