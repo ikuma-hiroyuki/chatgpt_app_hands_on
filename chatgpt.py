@@ -1,9 +1,9 @@
 import os
 
 import openai
-from openai import OpenAI
 from colorama import Fore
 from dotenv import load_dotenv
+from openai import OpenAI
 
 EXIT_COMMAND = "exit()"
 DEFAULT_MODEL = "gpt-3.5-turbo"
