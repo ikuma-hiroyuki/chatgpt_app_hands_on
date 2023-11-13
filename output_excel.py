@@ -21,6 +21,8 @@ def is_output_open_excel() -> bool:
         try:
             with excel_path.open("r+b"):
                 return False
+        except FileNotFoundError:
+            return False
         except PermissionError:
             return True
 
