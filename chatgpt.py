@@ -86,8 +86,8 @@ def stream_and_concatenate_response(response) -> tuple[str, str]:
     role = ""
     for chunk in response:
         chunk_delta = chunk.choices[0].delta
-        content_chunk: str = chunk_delta.content
-        role_chunk: str = chunk_delta.role
+        content_chunk: str = chunk_delta.content if chunk_delta.content else ""
+        role_chunk: str = chunk_delta.role if chunk_delta.role else ""
         if role_chunk:
             role = role_chunk
         content_list.append(content_chunk)
@@ -95,7 +95,7 @@ def stream_and_concatenate_response(response) -> tuple[str, str]:
     else:
         print()
 
-    concatenate_response = "".join([content for content in content_list if content is not None])
+    concatenate_response = "".join(content_list)
     return concatenate_response, role
 
 
