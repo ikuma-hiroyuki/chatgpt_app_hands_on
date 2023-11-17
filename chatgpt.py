@@ -203,11 +203,7 @@ def generate_summary(initial_prompt: str, summary_length: int = 10) -> str:
     response = client.chat.completions.create(model=DEFAULT_MODEL, messages=messages, max_tokens=summary_length)
     summary = response.choices[0].message.content
 
-    if len(summary) > summary_length:
-        adjustment_summary = summary[:summary_length]
-        return adjustment_summary
-    else:
-        return summary
+    return summary[:summary_length]
 
 
 def chat_runner() -> tuple[list[dict], str]:
