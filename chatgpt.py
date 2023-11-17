@@ -21,9 +21,11 @@ def give_role_to_system() -> str:
 
     # はじめの説明を表示
     print(f"\nAIアシスタントとチャットを始めます。チャットを終了させる場合は {EXIT_COMMAND} と入力してください。")
+
     # AIアシスタントに与える役割を入力
-    return input("AIアシスタントに与える役割がある場合は入力してください。\n"
-                 "ない場合はそのままEnterキーを押してください。: ")
+    system_role = input("AIアシスタントに与える役割がある場合は入力してください。\n"
+                        "ない場合はそのままEnterキーを押してください。: ")
+    return system_role
 
 
 def input_user_prompt() -> str:
