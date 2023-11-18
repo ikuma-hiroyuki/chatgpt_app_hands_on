@@ -20,7 +20,7 @@ def give_role_to_system() -> str:
     """
 
     # はじめの説明を表示
-    print(f"\nAIアシスタントとチャットを始めます。チャットを終了させる場合は {EXIT_COMMAND} と入力してください。")
+    print(f"\nAIアシスタントとチャットを始めます。チャットを終了させる場合は {EXIT_COMMAND} と入力してください。\n")
 
     # AIアシスタントに与える役割を入力
     system_role = input("AIアシスタントに与える役割がある場合は入力してください。\n"
@@ -36,16 +36,16 @@ def input_user_prompt() -> str:
 
     user_prompt = ""
     while not user_prompt:
-        user_prompt = input(f"\n{Fore.CYAN}あなた: {Fore.RESET}")
+        user_prompt = input(f"{Fore.CYAN}あなた: {Fore.RESET}")
         if not user_prompt:
             print("プロンプトを入力してください。")
     return user_prompt
 
 
-def generate_chat_log(gpt_mode: str) -> list[dict]:
+def generate_chat_log(gpt_model: str) -> list[dict]:
     """
     チャットを開始して、チャットログを返す
-    :param gpt_mode: GPTモデルの名前
+    :param gpt_model: GPTモデルの名前
     :return: チャットログ
     """
 
@@ -66,8 +66,10 @@ def generate_chat_log(gpt_mode: str) -> list[dict]:
         chat_log.append({"role": "user", "content": prompt})
 
         # AIの応答を取得
-        response = client.chat.completions.create(model=gpt_mode, messages=chat_log, stream=True)
-        content, role = stream_and_concatenate_response(response)
+        response = client.chat.completions.create(model=gpt_model, messages=chat_log, stream=True)
+
+        # ストリーミングでAIの応答を取得
+        role, content = stream_and_concatenate_response(response)
 
         # チャットログにAIの応答を追加
         chat_log.append({"role": role, "content": content})
@@ -78,27 +80,26 @@ def generate_chat_log(gpt_mode: str) -> list[dict]:
 def stream_and_concatenate_response(response) -> tuple[str, str]:
     """
     AIの応答をストリーミングで取得したものをチャンクで表示し、結合して返す
-    :param response: openai.ChatCompletion.create()の戻り値
-    :returns: AIの応答の文字列, AIの応答の役割
+    :param response: OpenAI.chat.completions.create()の戻り値
+    :return: AIの応答の文字列、AIの応答の役割
     """
 
-    print(f"\n{Fore.GREEN}AIアシスタント: {Fore.RESET}", end="")
-
+    print(f"{Fore.GREEN}\nAIアシスタント: {Fore.RESET}", end="")
     content_list: list[str] = []
     role = ""
     for chunk in response:
         chunk_delta = chunk.choices[0].delta
-        content_chunk: str = chunk_delta.content if chunk_delta.content else ""
-        role_chunk: str = chunk_delta.role if chunk_delta.role else ""
+        content_chunk = chunk_delta.content if chunk_delta.content is not None else ""
+        role_chunk = chunk_delta.role
         if role_chunk:
             role = role_chunk
         content_list.append(content_chunk)
         print(content_chunk, end="")
     else:
         print()
+        content = "".join(content_list)
 
-    concatenate_response = "".join(content_list)
-    return concatenate_response, role
+    return role, content
 
 
 def print_error_message(message: str):
@@ -112,23 +113,25 @@ def print_error_message(message: str):
 def fetch_gpt_model_list() -> list[str] | None:
     """
     GPTモデルの一覧を取得
-    :return: GPTモデルの一覧 (エラーが発生した場合はNone)
+    :return: GPTモデルの一覧
     """
 
-    # モデル一覧の取得
+    # モデルの一覧の取得
     try:
-        all_model_list = client.models.list().data
-    except openai.APIError:
-        print_error_message("OpenAI側でエラーが発生しています。少し待ってから再度試してください。")
-        print("サービス稼働状況は https://status.openai.com で確認できます。")
-    except TimeoutError:
-        print_error_message("処理に時間がかかりすぎているためプログラムを終了します。少し待ってから再度試してください。")
+        all_model_list = client.models.list()
+    except openai.InternalServerError:
+        print_error_message(f"OpenAI側でエラーが発生しています。少し待ってから再度試してください。")
+        print("サービス稼働状況は https://status.openai.com/ で確認できます。")
     except openai.AuthenticationError:
-        print_error_message("APIキーが正しくないためプログラムを終了します。")
-    except openai.OpenAIError:
-        print_error_message("エラーが発生しました。")
+        print_error_message("APIキーが正しく設定されていません。")
+    except openai.APITimeoutError:
+        print_error_message("APIのタイムアウトが発生しました。しばらくしてから再度実行してください。")
+    except openai.RateLimitError:
+        print_error_message("APIのレート制限に達しました。")
+    except openai.APIError:
+        print_error_message("エラーが発生しました")
     else:
-        # gptモデルのみ抽出する
+        # GPTモデルのみ抽出する
         gpt_model_list = []
         for model in all_model_list:
             if "gpt" in model.id:
@@ -147,7 +150,7 @@ def choice_model(gpt_model_list: list[str]) -> str:
     :return: 選択したモデル名
     """
 
-    # モデル一覧を表示
+    # モデルの一覧を表示
     print("AIとのチャットに使うモデルの番号を入力し Enter キーを押してください。")
     for num, model in enumerate(gpt_model_list):
         print(f"{num}: {model}")
@@ -160,7 +163,7 @@ def choice_model(gpt_model_list: list[str]) -> str:
             return DEFAULT_MODEL
 
         # 数字じゃなかった場合
-        elif not input_number.isdigit():
+        if not input_number.isdigit():
             print_error_message("数字を入力してください。")
 
         # モデル一覧の範囲外の数字だった場合
@@ -176,10 +179,11 @@ def choice_model(gpt_model_list: list[str]) -> str:
 def get_initial_prompt(chat_log: list[dict]) -> str | None:
     """
     チャットの履歴からユーザーの最初のプロンプトを取得する。
-    :param chat_log: チャットの履歴
+    :param chat_log:チャットの履歴
     :return: ユーザーの最初のプロンプト
     """
 
+    # ユーザーの最初のプロンプトを取得
     for log in chat_log:
         if log["role"] == "user":
             initial_prompt = log["content"]
@@ -189,9 +193,9 @@ def get_initial_prompt(chat_log: list[dict]) -> str | None:
 def generate_summary(initial_prompt: str, summary_length: int = 10) -> str:
     """
     ユーザーの最初のプロンプトを要約する。
-    :param initial_prompt: ユーザーの最初のプロンプト
-    :param summary_length: 要約する文字数の上限
-    :return: 要約されたプロンプト
+    :param initial_prompt:  ユーザーの最初のプロンプト
+    :param summary_length:  要約する文字数の上限
+    :return:  要約されたプロンプト
     """
 
     summary_request = {"role": "system",
@@ -203,42 +207,40 @@ def generate_summary(initial_prompt: str, summary_length: int = 10) -> str:
     response = client.chat.completions.create(model=DEFAULT_MODEL, messages=messages, max_tokens=summary_length)
     summary = response.choices[0].message.content
 
-    return summary[:summary_length]
+    adjustment_summary = summary[:summary_length]
+    return adjustment_summary
 
 
 def chat_runner() -> tuple[list[dict], str]:
     """
     チャットを開始し、チャットログとユーザーの最初のプロンプトを要約して返す。
-
-    エラーが発生したら処理を中止する。
-    :returns: チャットログ, ユーザーの最初のプロンプトの要約
+    :returns：チャットログ，ユーザーの最初のプロンプトの要約
     """
 
     # チャットを開始
-    # GPTモデルの一覧を取得
-    gpt_list = fetch_gpt_model_list()
-    # モデル一覧が取得できなかったら終了
-    if not gpt_list:
+    # GPTモデル一覧の取得
+    gpt_models = fetch_gpt_model_list()
+    if not gpt_models:
         exit()
 
     # チャットで使うモデルを選択
-    choice = choice_model(gpt_list)
-    # チャットログを取得
-    generated_log = generate_chat_log(choice)
+    choice = choice_model(gpt_models)
+    # チャットログの取得
+    generate_log = generate_chat_log(choice)
     # チャットログが空だったら終了
-    if not generated_log:
+    if not generate_log:
         exit()
 
     # ユーザーの最初のプロンプトを取得
-    initial_user_prompt = get_initial_prompt(generated_log)
+    initial_user_prompt = get_initial_prompt(generate_log)
 
     initial_prompt_summary = ""
     if initial_user_prompt:
         # ユーザーの最初のプロンプトを要約
         initial_prompt_summary = generate_summary(initial_user_prompt)
 
-    return generated_log, initial_prompt_summary
+    return generate_log, initial_prompt_summary
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     chat_runner()
